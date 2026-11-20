@@ -112,7 +112,16 @@ public sealed class AcerEcLightingDevice : IDisposable
             var mask = IsKeyboard
                 ? AcerEcLightingProtocol.CreateKeyboardLedMask(_capabilities.Major, _capabilities.Minor, colors)
                 : AcerEcLightingProtocol.CreateLightbarLedMask(_capabilities.Major, _capabilities.Minor, SideSelector, colors);
-            Invoke("SetGamingLED", mask);
+
+            try
+            {
+                Invoke("SetGamingLED", mask);
+            }
+            catch (InvalidOperationException) when (IsKeyboard)
+            {
+                // PHN14-71 / PHN16-71 firmware rejects SetGamingLED mask for keyboard; proceed directly to SetGamingKBBacklight + SetGamingRgbKb.
+            }
+
             Invoke("SetGamingKBBacklight", IsKeyboard ? AcerEcLightingProtocol.CreateKeyboardBrightness(brightness) : AcerEcLightingProtocol.CreateLightbarBrightness(brightness));
             for (int i = 0; i < colors.Length; i++)
             {
@@ -125,15 +134,6 @@ public sealed class AcerEcLightingDevice : IDisposable
                 Invoke("SetGamingRgbKb", value);
             }
         }
-    }
-
-    public void ApplyMode(byte mode, byte speed, byte brightness, byte direction, byte red, byte green, byte blue)
-    {
-        ObjectDisposedException.ThrowIf(_disposed, this);
-        lock (TransportLock)
-            Invoke("SetGamingKBBacklight", IsKeyboard
-                ? AcerEcLightingProtocol.CreateKeyboardMode(mode, speed, brightness, direction, red, green, blue)
-                : AcerEcLightingProtocol.CreateLightbarMode(mode, speed, brightness, direction, red, green, blue));
     }
 
     private void Invoke(string method, object value)
